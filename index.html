@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Projetos - Agente Workana</title>
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <style>
+        /* Cole aqui o mesmo CSS da resposta anterior, ele está ótimo! */
+        body {
+            font-family: sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #1c1e21;
+        }
+
+        #projects-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+
+        .project-card {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s;
+        }
+
+        .project-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .project-card h2 a {
+            text-decoration: none;
+            color: #0d6efd;
+        }
+
+        .project-card .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            font-size: 0.8rem;
+            color: #6c757d;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .project-card .meta span {
+            background-color: #e9ecef;
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+
+        .project-card h3 {
+            font-size: 0.9rem;
+            margin-top: 10px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .project-card p {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            flex-grow: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Dashboard de Projetos Analisados</h1>
+    <div id="projects-container"></div>
+
+    <script>
+        const container = document.getElementById('projects-container');
+
+        // Suas chaves PÚBLICAS do Pusher e Vercel
+        const PUSHER_KEY = '6e7c8af973310ee6d842'; // <-- VALOR CORRETO AQUI
+        const PUSHER_CLUSTER = 'sa1';
+
+        function createProjectCard(project) {
+            const card = document.createElement('div');
+            card.className = 'project-card';
+
+            // A linha abaixo agora tem todo o conteúdo do card
+            card.innerHTML = `
+        <h2>
+            <a href="${project.url}" target="_blank" rel="noopener noreferrer">
+                ${project.title}
+            </a>
+        </h2>
+        <div class="meta">
+            <span><strong>Publicado:</strong> ${project.publishedDate ?? 'N/A'}</span>
+            <span><strong>Orçamento:</strong> ${project.budget?.amount ? `USD ${project.budget.amount}` : (project.budget ?? 'N/A')}</span>
+            <span><strong>Propostas:</strong> ${project.totalBids ?? 'N/A'}</span>
+        </div>
+        <h3>Resumo</h3>
+        <p>${project.summary}</p>
+        <h3>Proposta Sugerida</h3>
+        <p>${project.proposal}</p>
+    `;
+            return card;
+        }
+
+        async function loadInitialProjects() {
+            try {
+                // Busca os projetos da nova API
+                const response = await fetch('/api/get-projects');
+                const projects = await response.json();
+                container.innerHTML = '';
+                projects.forEach(project => {
+                    const card = createProjectCard(project);
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Erro ao carregar projetos iniciais:', error);
+            }
+        }
+
+        function showBrowserNotification(project) {
+            if (!("Notification" in window)) return;
+            if (Notification.permission === "granted") {
+                new Notification("Novo projeto relevante!", { body: project.title });
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(p => {
+                    if (p === "granted") new Notification("Novo projeto!", { body: project.title });
+                });
+            }
+        }
+
+        // --- Conexão com PUSHER ---
+        const pusher = new Pusher(PUSHER_KEY, {
+            cluster: PUSHER_CLUSTER
+        });
+
+        const channel = pusher.subscribe('projects-channel');
+        channel.bind('new-project', function (data) {
+            console.log("Novo projeto recebido via Pusher:", data);
+            const newCard = createProjectCard(data);
+            container.prepend(newCard);
+            showBrowserNotification(data);
+        });
+
+        document.addEventListener('DOMContentLoaded', loadInitialProjects);
+    </script>
+</body>
+
+</html>
